@@ -4,7 +4,7 @@ import sys
 import os
 import assumer_py.colours as col
 
-# Check if requicol.red packages are installed: aws, jq, fzf
+# Check if required packages are installed: aws, jq, fzf
 #   Exit if this is not the case and show helpful error message!
 def check_package_installed(package_list: list):
     """Checks if required packages are installed
@@ -19,41 +19,45 @@ def check_package_installed(package_list: list):
             missing_packages.append(package)
     
     if not missing_packages == []:
-        print(f"{col.col.yellow}ERROR: The following required packages are not installed:")
+        print(f"{col.yellow}ERROR: The following required packages are not installed:")
         for package in missing_packages:
             print(f' - {package}')
-        print(f"\n{col.col.reset}Install them using homebrew: https://brew.sh/ (macOS)")
+        print(f"\n{col.reset}Install them using homebrew: https://brew.sh/ (macOS)")
         print("or using your system package manager (Linux)\n")
         sys.exit(1)
     
 
-# Check if AWS CLI is NOT version 1. (or  version specified)
-#   Exit if this is not the case and show helpful error message!
-def check_awscli_version():
-    """Checks if AWS CLI is version 2 or above, error if not true."""
-    try:        
-        command_output = subprocess.run(["sh", "-c", "aws --version"], 
+# For running a CLI command from Python
+def aws_cli_command(command):
+    try:
+        command_output = subprocess.run(["sh", "-c", f"{command}"], 
                                         capture_output=True, 
                                         encoding="utf-8",
                                         check=True,
-                                        timeout=5)
+                                        timeout=3)                         
 
     except FileNotFoundError as e:
-        print(f"{col.red}sh command not found:\n {e}")
+        print(f"{col.red}sh command not found:\n {e}{col.reset}")
         sys.exit(1)
     
     except subprocess.CalledProcessError as e:
         print(f"{col.red}AWS CLI raised error ({e.returncode}):")
-        print(f"{e.stderr}")
+        print(f"{e.stderr}{col.reset}")
         sys.exit(1)
         
-    except subprocess.TimeoutExpicol.red as e:
-        print(f"{col.red}Command timed out:\n{e}")
+    except subprocess.TimeoutExpired as e:
+        print(f"{col.red}Command timed out:\n{e}{col.reset}")
         sys.exit(1)
     
+    return command_output
+
+# Check if AWS CLI is NOT version 1. (or  version specified)
+#   Exit if this is not the case and show helpful error message!
+def check_awscli_version():
+    """Checks if AWS CLI is version 2 or above, error if not true."""   
     try:
         # TODO: this 'multisplit' can probably be done better
-        check_result = command_output.stdout.split('/')[1].split(" ")[0].split(".")[0]
+        check_result = aws_cli_command("aws --version").stdout.split('/')[1].split(" ")[0].split(".")[0]
         check_result_int = int(check_result)
 
     except AttributeError as error:
@@ -62,6 +66,7 @@ def check_awscli_version():
 
     match check_result_int:
         case x if x == 2:
+            print(f"{col.green}SUCCESS{col.reset}")
             return True
         case x if x == 1:
             print(f"{col.red}ERROR: AWS CLI Version 1 is not supported")
@@ -86,10 +91,36 @@ def check_awscli_config():
         print(f" - https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html")
         sys.exit(1)
 
+# Spit out help message in case 
+def assumer_help():
+    """Spits out help"""
+
+    help = """\n
+    Command usage:
+        - assumer [-r|--rolename ROLENAME]
+        - assumer [-c|--createcsv]
+        - assumer [-s|--superuser-role]
+        - assumer [-d|--devops]
+      
+    EXAMPLES:
+      Assume Role in account X
+        - assumer 
+    """
+    return help
 
 
 # Determine the current path and make check whether script is sourced 
 #   Exit if this is not the case and show helpful error message!
+def get_aws_profile_info(profile):
+
+    #TODO: Broken, needs fix
+    sso_account_id = aws_cli_command(f"aws configure get \"{profile}\".sso_account_id")
+    sso_role_name  = aws_cli_command(f"aws configure get \"{profile}\".sso_role_name")
+    sso_start_url  = aws_cli_command(f"aws configure get \"{profile}\".sso_start_url")
+    
+    return [sso_role_name,sso_account_id,sso_start_url]
+
+
 
 # In case of arguments, check each arguments value and set var value, if exists
 #    -h|--help)
@@ -112,10 +143,10 @@ def check_awscli_config():
 
 # Set Paths used by fzf_account_selector & default_roles
 
-# Check if SSO token is active or has expicol.red
+# Check if SSO token is active or has expired
 #   Exit if this is not the case and show helpful error message!
 
-# Removes other ccol.redentials that might conflict with assuming role
+# Removes other credentials that might conflict with assuming role
 # (unset environment variables)
 
 # Main Case Statement here 
